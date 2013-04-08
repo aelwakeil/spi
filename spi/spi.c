@@ -17,7 +17,6 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/usart.h>
@@ -33,6 +32,7 @@ void uart_printf (char *ptr);
 
 static void clock_setup(void)
 {
+	//rcc_clock_setup_in_hse_12mhz_out_72mhz();
 	rcc_clock_setup_in_hse_8mhz_out_24mhz();
 	/* Enable GPIOA, GPIOB, GPIOC clock. */
 	rcc_peripheral_enable_clock(&RCC_APB2ENR,
@@ -42,9 +42,9 @@ static void clock_setup(void)
 	rcc_peripheral_enable_clock(&RCC_APB2ENR, RCC_APB2ENR_AFIOEN);
 	rcc_peripheral_enable_clock(&RCC_APB2ENR, RCC_APB2ENR_USART1EN);
 
-	/* Enable SPI1 Periph and gpio clocks */
+	/* Enable SPI2 Periph and gpio clocks */
 	rcc_peripheral_enable_clock(&RCC_APB2ENR,
-				    RCC_APB2ENR_SPI1EN);
+				    RCC_APB1ENR_SPI2EN);
 }
 
 static void usart_setup(void)
@@ -77,6 +77,15 @@ static void gpio_setup(void)
 
 static void spi_setup(void) {
 
+  /* Configure GPIOs: SS=PA4, SCK=PA5, MISO=PA6 and MOSI=PA7 */
+  /*gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,
+            GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO4 |
+					    GPIO5 |
+                                            GPIO7 );
+
+  gpio_set_mode(GPIOA, GPIO_MODE_INPUT, GPIO_CNF_INPUT_FLOAT,
+          GPIO6);
+  */
   /* Configure GPIOs: SS=PB12, SCK=PB13, MISO=PB14 and MOSI=PA15 */
   gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ,
             GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO12 |
@@ -97,7 +106,7 @@ static void spi_setup(void) {
 		      GPIO_CNF_OUTPUT_PUSHPULL, GPIO5 |
 					    GPIO6 );
   /* Reset SPI, SPI_CR1 register cleared, SPI is disabled */
-  spi_reset(SPI1);
+  spi_reset(SPI2);
 
   /* Set up SPI in Master mode with:
    * Clock baud rate: 1/64 of peripheral clock frequency
@@ -106,7 +115,10 @@ static void spi_setup(void) {
    * Data frame format: 8-bit
    * Frame format: MSB First
    */
-  spi_init_master(SPI1, SPI_CR1_BAUDRATE_FPCLK_DIV_64, SPI_CR1_CPOL_CLK_TO_1_WHEN_IDLE,
+ // spi_init_master(SPI2, 1000000, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
+ //                  SPI_CR1_CPHA_CLK_TRANSITION_1, SPI_CR1_DFF_8BIT,
+ //                  SPI_CR1_LSBFIRST);
+  spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_64, SPI_CR1_CPOL_CLK_TO_1_WHEN_IDLE,
                   SPI_CR1_CPHA_CLK_TRANSITION_2, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
 
   /*
@@ -117,11 +129,13 @@ static void spi_setup(void) {
    * ourselves this bit needs to be at least set to 1, otherwise the spi
    * peripheral will not send any data out.
    */
-  spi_enable_software_slave_management(SPI1);
-  spi_set_nss_high(SPI1);
+  spi_enable_software_slave_management(SPI2);
+  spi_set_nss_high(SPI2);
 
-  /* Enable SPI1 periph. */
-  spi_enable(SPI1);
+  spi_disable_error_interrupt(SPI2);
+  spi_disable_crc(SPI2);
+  /* Enable SPI2 periph. */
+  spi_enable(SPI2);
 }
 
 /*******************************************************************************
@@ -156,13 +170,16 @@ void uart_printf (char *ptr)
 static void ep_cs(int val){
     //BP12 
     if(val == 1){
-      gpio_set(GPIOB, GPIO12);
+      spi_set_nss_high(SPI2);
+      //gpio_set(GPIOB, GPIO12);
     } else {
-      gpio_clear(GPIOB, GPIO12);
+      spi_set_nss_low(SPI2);
+      //gpio_clear(GPIOB, GPIO12);
     }
 }
 
 static void ep_on(int val){
+  //Vcc
     //BP12 
     if(val == 1){
       gpio_set(GPIOC, GPIO6);
@@ -172,24 +189,21 @@ static void ep_on(int val){
 }
 static void epTurnOff(void){
     delay_ms(500);	// TVcc_on > 10 ms PE
-    //turn on EP
+    //turn off EP
+    ep_on(0);		// V Chip RESET Set E T Select SETUP get = low get 40% low x TCLK ~60% x TCLK
     gpio_clear(GPIOC, GPIO5);
 }
 static void epTurnOn(void){
-  
     ep_cs(0);
     ep_on(0);		// V Chip RESET Set E T Select SETUP get = low get 40% low x TCLK ~60% x TCLK
+    gpio_set(GPIOC, GPIO5); //Vcc
     delay_ms(10);	// TVcc_on > 10 ms PE
 
     //Reset Display TCON
     ep_cs(1);		// Chip Select get high
     ep_on(1);		// RESET get high
     delay_ms (5);	// Delay 5 ms
-    ep_on(0);		// RESET get low
-    delay_ms (5);	// Delay TRESET > 5 ms
-    ep_on(1);		// Reset high
-    delay_ms(19);	// TRESET_CS > 19 ms
-    gpio_set(GPIOC, GPIO5);
+    ep_cs(0);		// Chip Select get high
 }
 static void epSendData(void){
   epTurnOn();
@@ -200,8 +214,8 @@ static void epSendData(void){
   delay_ms (1);
   // Delay TCS_SI > 1 ms ; TRESET_CS + TCS_SI ≧ 20ms
   // Send Header Byte
-  spi_send(SPI1,(uint8_t) 0x06);
-  spi_send(SPI1,(uint8_t) 0xA0);
+  spi_send(SPI2,(uint8_t) 0x06);
+  spi_send(SPI2,(uint8_t) 0xA0);
   // Send Header Byte ID = 0x06A0 (for 10.2" EPD)
   delay_ms (120);
   // 120 ms ≦ TDELAY1 ≦ 150 ms
@@ -212,13 +226,13 @@ static void epSendData(void){
       for (j=0 ; j < 64 ; j++)
       // 1 Line of pixels, 1024/8/2=16.5 Bytes
       {
-	spi_send(SPI1,(uint8_t) 0xFF); 
-	spi_send(SPI1,(uint8_t) 0xFF);// // Byte2, Byte1, “Black” “Black”  for example example.
+	spi_send(SPI2,(uint8_t) 0xFF); 
+	spi_send(SPI2,(uint8_t) 0xFF);// // Byte2, Byte1, “Black” “Black”  for example example.
 	delay_ms (1); 
       }
       
-      spi_send(SPI1,(uint8_t) 0xFF); // 
-      spi_send (SPI1,(uint8_t) 0x00);
+      spi_send(SPI2,(uint8_t) 0xFF); // 
+      spi_send (SPI2,(uint8_t) 0x00);
       delay_ms(1);
   }
     //wait for BUSSY
@@ -233,8 +247,11 @@ static void epSendData(void){
 
 int main(void)
 {
+  int counter = 0;
+  u16 rx_value = 0x42;
 	clock_setup();
 	gpio_setup();
+	gpio_set(GPIOC, GPIO0 | GPIO1 | GPIO2);
 	gpio_clear(GPIOC, GPIO0);
 	usart_setup();
 	gpio_clear(GPIOC, GPIO1);
@@ -245,7 +262,19 @@ int main(void)
 	/* Blink the LED (PC1) on the board with every transmitted byte. */
 	
 	while (1) {
-		epSendData();
+		
+		/* printf the value that SPI should send */
+		/* blocking send of the byte out SPI1 */
+		spi_write(SPI2, (uint8_t) counter);
+		/* Read the byte that just came in (use a loopback between MISO and MOSI
+		 * to get the same byte back)
+		 */
+		rx_value = spi_read(SPI2);
+		/* printf the byte just received */
+
+		counter++;
+		
+		//epSendData();
 		/* LED on/off */
 		gpio_toggle(GPIOC, GPIO1);
 		uart_printf("Test mode\r\n");
