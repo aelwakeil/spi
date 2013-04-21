@@ -1,0 +1,279 @@
+
+blink.elf:     file format elf32-littlearm
+
+
+Disassembly of section .text:
+
+08000000 <vector_table>:
+ 8000000:	00 20 00 20 15 02 00 08 11 02 00 08 0f 02 00 08     . . ............
+ 8000010:	0f 02 00 08 0f 02 00 08 0f 02 00 08 00 00 00 00     ................
+	...
+ 800002c:	11 02 00 08 11 02 00 08 00 00 00 00 11 02 00 08     ................
+ 800003c:	11 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 800004c:	0f 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 800005c:	0f 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 800006c:	0f 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 800007c:	0f 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 800008c:	0f 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 800009c:	0f 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 80000ac:	0f 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 80000bc:	0f 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 80000cc:	0f 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 80000dc:	0f 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 80000ec:	0f 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 80000fc:	0f 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 800010c:	0f 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 800011c:	0f 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 800012c:	0f 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 800013c:	0f 02 00 08 0f 02 00 08 0f 02 00 08 0f 02 00 08     ................
+ 800014c:	0f 02 00 08                                         ....
+
+08000150 <main>:
+	gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ,
+		      GPIO_CNF_OUTPUT_PUSHPULL, GPIO8);
+}
+
+int main(void)
+{
+ 8000150:	b508      	push	{r3, lr}
+{
+	/* Enable GPIOC clock. */
+	/* Manually: */
+	// RCC_APB2ENR |= RCC_APB2ENR_IOPCEN;
+	/* Using API functions: */
+	rcc_peripheral_enable_clock(&RCC_APB2ENR, RCC_APB2ENR_IOPCEN);
+ 8000152:	480b      	ldr	r0, [pc, #44]	; (8000180 <main+0x30>)
+ 8000154:	2110      	movs	r1, #16
+ 8000156:	f000 f851 	bl	80001fc <rcc_peripheral_enable_clock>
+	/* Set GPIO8 (in GPIO port C) to 'output push-pull'. */
+	/* Manually: */
+	// GPIOC_CRH = (GPIO_CNF_OUTPUT_PUSHPULL << (((8 - 8) * 4) + 2));
+	// GPIOC_CRH |= (GPIO_MODE_OUTPUT_2_MHZ << ((8 - 8) * 4));
+	/* Using API functions: */
+	gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ,
+ 800015a:	480a      	ldr	r0, [pc, #40]	; (8000184 <main+0x34>)
+ 800015c:	2102      	movs	r1, #2
+ 800015e:	2200      	movs	r2, #0
+ 8000160:	f44f 7380 	mov.w	r3, #256	; 0x100
+ 8000164:	f000 f812 	bl	800018c <gpio_set_mode>
+		// gpio_clear(GPIOC, GPIO8);	/* LED on */
+		// for (i = 0; i < 800000; i++)	/* Wait a bit. */
+		// 	__asm__("nop");
+
+		/* Using API function gpio_toggle(): */
+		gpio_toggle(GPIOC, GPIO8);	/* LED on/off */
+ 8000168:	4806      	ldr	r0, [pc, #24]	; (8000184 <main+0x34>)
+ 800016a:	f44f 7180 	mov.w	r1, #256	; 0x100
+ 800016e:	f000 f84a 	bl	8000206 <gpio_toggle>
+ 8000172:	2300      	movs	r3, #0
+		for (i = 0; i < 800000; i++)	/* Wait a bit. */
+			__asm__("nop");
+ 8000174:	bf00      	nop
+		// for (i = 0; i < 800000; i++)	/* Wait a bit. */
+		// 	__asm__("nop");
+
+		/* Using API function gpio_toggle(): */
+		gpio_toggle(GPIOC, GPIO8);	/* LED on/off */
+		for (i = 0; i < 800000; i++)	/* Wait a bit. */
+ 8000176:	4a04      	ldr	r2, [pc, #16]	; (8000188 <main+0x38>)
+ 8000178:	3301      	adds	r3, #1
+ 800017a:	4293      	cmp	r3, r2
+ 800017c:	d1fa      	bne.n	8000174 <main+0x24>
+ 800017e:	e7f3      	b.n	8000168 <main+0x18>
+ 8000180:	40021018 	.word	0x40021018
+ 8000184:	40011000 	.word	0x40011000
+ 8000188:	000c3500 	.word	0x000c3500
+
+0800018c <gpio_set_mode>:
+@param[in] gpios Unsigned int16. Pin identifiers @ref gpio_pin_id
+             If multiple pins are to be set, use logical OR '|' to separate them.
+*/
+
+void gpio_set_mode(u32 gpioport, u8 mode, u8 cnf, u16 gpios)
+{
+ 800018c:	e92d 47f0 	stmdb	sp!, {r4, r5, r6, r7, r8, r9, sl, lr}
+
+	/*
+	 * We want to set the config only for the pins mentioned in gpios,
+	 * but keeping the others, so read out the actual config first.
+	 */
+	crl = GPIO_CRL(gpioport);
+ 8000190:	6806      	ldr	r6, [r0, #0]
+	crh = GPIO_CRH(gpioport);
+ 8000192:	2400      	movs	r4, #0
+ 8000194:	6845      	ldr	r5, [r0, #4]
+ 8000196:	46a4      	mov	ip, r4
+
+	/* Iterate over all bits, use i as the bitnumber. */
+	for (i = 0; i < 16; i++) {
+		/* Only set the config if the bit is set in gpios. */
+		if (!((1 << i) & gpios))
+ 8000198:	fa43 f70c 	asr.w	r7, r3, ip
+ 800019c:	f017 0f01 	tst.w	r7, #1
+ 80001a0:	d021      	beq.n	80001e6 <gpio_set_mode+0x5a>
+ 80001a2:	fa1f f88c 	uxth.w	r8, ip
+			continue;
+
+		/* Calculate bit offset. */
+		offset = (i < 8) ? (i * 4) : ((i - 8) * 4);
+ 80001a6:	f1b8 0f07 	cmp.w	r8, #7
+ 80001aa:	d802      	bhi.n	80001b2 <gpio_set_mode+0x26>
+ 80001ac:	4627      	mov	r7, r4
+ 80001ae:	46b2      	mov	sl, r6
+ 80001b0:	e003      	b.n	80001ba <gpio_set_mode+0x2e>
+ 80001b2:	f1a4 0720 	sub.w	r7, r4, #32
+ 80001b6:	b2bf      	uxth	r7, r7
+ 80001b8:	46aa      	mov	sl, r5
+
+		/* Use tmp32 to either modify crl or crh. */
+		tmp32 = (i < 8) ? crl : crh;
+
+		/* Modify bits are needed. */
+		tmp32 &= ~(0xf << offset);	/* Clear the bits first. */
+ 80001ba:	f04f 090f 	mov.w	r9, #15
+ 80001be:	fa09 f907 	lsl.w	r9, r9, r7
+ 80001c2:	ea2a 0a09 	bic.w	sl, sl, r9
+		tmp32 |= (mode << offset) | (cnf << (offset + 2));
+ 80001c6:	f107 0902 	add.w	r9, r7, #2
+ 80001ca:	fa02 f909 	lsl.w	r9, r2, r9
+ 80001ce:	fa11 f707 	lsls.w	r7, r1, r7
+ 80001d2:	ea49 0707 	orr.w	r7, r9, r7
+ 80001d6:	ea47 070a 	orr.w	r7, r7, sl
+
+		/* Write tmp32 into crl or crh, leave the other unchanged. */
+		crl = (i < 8) ? tmp32 : crl;
+ 80001da:	f1b8 0f08 	cmp.w	r8, #8
+ 80001de:	bf28      	it	cs
+ 80001e0:	463d      	movcs	r5, r7
+ 80001e2:	bf38      	it	cc
+ 80001e4:	463e      	movcc	r6, r7
+ 80001e6:	f10c 0c01 	add.w	ip, ip, #1
+ 80001ea:	3404      	adds	r4, #4
+	 */
+	crl = GPIO_CRL(gpioport);
+	crh = GPIO_CRH(gpioport);
+
+	/* Iterate over all bits, use i as the bitnumber. */
+	for (i = 0; i < 16; i++) {
+ 80001ec:	f1bc 0f10 	cmp.w	ip, #16
+		/* Modify bits are needed. */
+		tmp32 &= ~(0xf << offset);	/* Clear the bits first. */
+		tmp32 |= (mode << offset) | (cnf << (offset + 2));
+
+		/* Write tmp32 into crl or crh, leave the other unchanged. */
+		crl = (i < 8) ? tmp32 : crl;
+ 80001f0:	b2a4      	uxth	r4, r4
+	 */
+	crl = GPIO_CRL(gpioport);
+	crh = GPIO_CRH(gpioport);
+
+	/* Iterate over all bits, use i as the bitnumber. */
+	for (i = 0; i < 16; i++) {
+ 80001f2:	d1d1      	bne.n	8000198 <gpio_set_mode+0xc>
+		/* Write tmp32 into crl or crh, leave the other unchanged. */
+		crl = (i < 8) ? tmp32 : crl;
+		crh = (i >= 8) ? tmp32 : crh;
+	}
+
+	GPIO_CRL(gpioport) = crl;
+ 80001f4:	6006      	str	r6, [r0, #0]
+	GPIO_CRH(gpioport) = crh;
+ 80001f6:	6045      	str	r5, [r0, #4]
+}
+ 80001f8:	e8bd 87f0 	ldmia.w	sp!, {r4, r5, r6, r7, r8, r9, sl, pc}
+
+080001fc <rcc_peripheral_enable_clock>:
+@li If register is RCC_APB2ENR, from @ref rcc_apb2enr_en
+*/
+
+void rcc_peripheral_enable_clock(volatile u32 *reg, u32 en)
+{
+	*reg |= en;
+ 80001fc:	6803      	ldr	r3, [r0, #0]
+ 80001fe:	ea41 0303 	orr.w	r3, r1, r3
+ 8000202:	6003      	str	r3, [r0, #0]
+}
+ 8000204:	4770      	bx	lr
+
+08000206 <gpio_toggle>:
+@param[in] gpios Unsigned int16. Pin identifiers @ref gpio_pin_id
+             If multiple pins are to be changed, use logical OR '|' to separate them.
+*/
+void gpio_toggle(u32 gpioport, u16 gpios)
+{
+	GPIO_ODR(gpioport) ^= gpios;
+ 8000206:	68c3      	ldr	r3, [r0, #12]
+ 8000208:	404b      	eors	r3, r1
+ 800020a:	60c3      	str	r3, [r0, #12]
+}
+ 800020c:	4770      	bx	lr
+
+0800020e <blocking_handler>:
+	/* Call the application's entry point. */
+	main();
+}
+
+void blocking_handler(void)
+{
+ 800020e:	e7fe      	b.n	800020e <blocking_handler>
+
+08000210 <null_handler>:
+}
+
+void null_handler(void)
+{
+	/* Do nothing. */
+}
+ 8000210:	4770      	bx	lr
+	...
+
+08000214 <reset_handler>:
+
+void WEAK __attribute__ ((naked)) reset_handler(void)
+{
+	volatile unsigned *src, *dest;
+
+	for (src = &_data_loadaddr, dest = &_data; dest < &_edata; src++, dest++)
+ 8000214:	4a09      	ldr	r2, [pc, #36]	; (800023c <reset_handler+0x28>)
+ 8000216:	4b0a      	ldr	r3, [pc, #40]	; (8000240 <reset_handler+0x2c>)
+ 8000218:	e003      	b.n	8000222 <reset_handler+0xe>
+		*dest = *src;
+ 800021a:	f852 1b04 	ldr.w	r1, [r2], #4
+ 800021e:	f843 1b04 	str.w	r1, [r3], #4
+
+void WEAK __attribute__ ((naked)) reset_handler(void)
+{
+	volatile unsigned *src, *dest;
+
+	for (src = &_data_loadaddr, dest = &_data; dest < &_edata; src++, dest++)
+ 8000222:	4908      	ldr	r1, [pc, #32]	; (8000244 <reset_handler+0x30>)
+ 8000224:	428b      	cmp	r3, r1
+ 8000226:	d3f8      	bcc.n	800021a <reset_handler+0x6>
+ 8000228:	e002      	b.n	8000230 <reset_handler+0x1c>
+		*dest = *src;
+
+	while (dest < &_ebss)
+		*dest++ = 0;
+ 800022a:	2200      	movs	r2, #0
+ 800022c:	f843 2b04 	str.w	r2, [r3], #4
+	volatile unsigned *src, *dest;
+
+	for (src = &_data_loadaddr, dest = &_data; dest < &_edata; src++, dest++)
+		*dest = *src;
+
+	while (dest < &_ebss)
+ 8000230:	4a05      	ldr	r2, [pc, #20]	; (8000248 <reset_handler+0x34>)
+ 8000232:	4293      	cmp	r3, r2
+ 8000234:	d3f9      	bcc.n	800022a <reset_handler+0x16>
+
+	/* might be provided by platform specific vector.c */
+	pre_main();
+
+	/* Call the application's entry point. */
+	main();
+ 8000236:	f7ff bf8b 	b.w	8000150 <main>
+ 800023a:	bf00      	nop
+ 800023c:	0800024c 	.word	0x0800024c
+ 8000240:	20000000 	.word	0x20000000
+ 8000244:	20000000 	.word	0x20000000
+ 8000248:	20000000 	.word	0x20000000

@@ -64,7 +64,7 @@ static void gpio_setup(void)
 {
 	/* Set GPIO9 (in GPIO port C) to 'output push-pull'. [LED] */
 	gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ,
-		      GPIO_CNF_OUTPUT_PUSHPULL, GPIO0 | GPIO1 | GPIO2);
+		      GPIO_CNF_OUTPUT_PUSHPULL, GPIO0 | GPIO1 | GPIO2 | GPIO6);
 }
 
 
@@ -112,9 +112,9 @@ int main(void)
 	gpio_toggle(GPIOC, GPIO0);	/* LED on/off */
 	char * data = "ahoj, test usart\r\n";
 	while(1){
-	  gpio_toggle(GPIOC, GPIO1);	/* LED on/off */
+	  gpio_toggle(GPIOC, GPIO6);	/* LED on/off */
 	  uart_printf(data);
-	  delay_ms(1000);
+	  delay_ms(5);
 	}
 	return 0;
 }
