@@ -17,45 +17,83 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <libopencm3/stm32/rcc.h>
-#include <libopencm3/stm32/gpio.h>
+#include <libopencm3/stm32/f1/rcc.h>
+#include <libopencm3/stm32/f1/gpio.h>
+//#include <libopencm3/stm32/rcc.h>
+//#include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/usart.h>
-#include <libopencm3/stm32/dma.h>
-#include <libopencm3/cm3/nvic.h>
+//#include <libopencm3/stm32/dma.h>
 #include <libopencm3/stm32/spi.h>
+#include <libopencm3/stm32/f1/nvic.h>
 #include <stdio.h>
 #include <errno.h>
+
+#define BUFFER_SIZE 1024
+
+struct uartBuff {
+	u8 *data;
+	s32 size;
+	u32 begin;
+	u32 end;
+};
+
+#define BUFF_SIZE(BUFF)  ((BUFF)->size - 1)
+#define BUFF_DATA(BUFF)  (BUFF)->data
+#define BUFF_EMPTY(BUFF) ((BUFF)->begin == (BUFF)->end)
+struct uartBuff output_buff;
+u8 output_uart_buffer[BUFFER_SIZE];
+
+int dataReady = 0;
 
 void delay_ms(int d);
 int SendChar (int ch);
 void uart_printf (char *ptr);
 
-static unsigned int lfsr113_Bits (void)
+static void buff_init(struct uartBuff *buff, u8 *buf, s32 size)
 {
-   static unsigned int z1 = 12345, z2 = 12345, z3 = 12345, z4 = 12345;
-   unsigned int b;
-   b  = ((z1 << 6) ^ z1) >> 13;
-   z1 = ((z1 & 4294967294U) << 18) ^ b;
-   b  = ((z2 << 2) ^ z2) >> 27; 
-   z2 = ((z2 & 4294967288U) << 2) ^ b;
-   b  = ((z3 << 13) ^ z3) >> 21;
-   z3 = ((z3 & 4294967280U) << 7) ^ b;
-   b  = ((z4 << 3) ^ z4) >> 12;
-   z4 = ((z4 & 4294967168U) << 13) ^ b;
-   return (z1 ^ z2 ^ z3 ^ z4);
+	buff->data = buf;
+	buff->size = size;
+	buff->begin = 0;
+	buff->end = 0;
+}
+
+
+static s32 buff_write_ch(struct uartBuff *buff, u8 ch)
+{
+	if (((buff->end + 1) % buff->size) != buff->begin) {
+		buff->data[buff->end++] = ch;
+		buff->end %= buff->size;
+		return (u32)ch;
+	}
+
+	return -1;
+}
+static s32 buff_read_ch(struct uartBuff *buff, u8 *ch)
+{
+	s32 ret = -1;
+
+	if (buff->begin != buff->end) {
+		ret = buff->data[buff->begin++];
+		buff->begin %= buff->size;
+		if (ch)
+			*ch = ret;
+	}
+
+	return ret;
 }
 
 static void clock_setup(void)
 {
-	//rcc_clock_setup_in_hse_12mhz_out_72mhz();
 	rcc_clock_setup_in_hse_8mhz_out_24mhz();
 	/* Enable GPIOA, GPIOB, GPIOC clock. */
 	rcc_peripheral_enable_clock(&RCC_APB2ENR,
 				    RCC_APB2ENR_IOPAEN | RCC_APB2ENR_IOPBEN | RCC_APB2ENR_IOPCEN);
 
 	/* Enable clocks for GPIO port A (for GPIO_USART1_TX) and USART1. */
-// 	rcc_peripheral_enable_clock(&RCC_APB2ENR, RCC_APB2ENR_AFIOEN);
-// 	rcc_peripheral_enable_clock(&RCC_APB2ENR, RCC_APB2ENR_USART1EN);
+	rcc_peripheral_enable_clock(&RCC_APB2ENR, RCC_APB2ENR_IOPAEN |
+				    RCC_APB2ENR_AFIOEN);
+
+	rcc_peripheral_enable_clock(&RCC_APB2ENR, RCC_APB2ENR_USART1EN);
 
 	/* Enable SPI2 Periph and gpio clocks */
 	rcc_peripheral_enable_clock(&RCC_APB1ENR,
@@ -64,12 +102,18 @@ static void clock_setup(void)
 
 static void usart_setup(void)
 {
+	/* Enable the USART1 interrupt. */
+	nvic_enable_irq(NVIC_USART1_IRQ);
+
+	buff_init(&output_buff, output_uart_buffer, BUFFER_SIZE);
+	
 	/* Setup GPIO pin GPIO_USART1_TX and GPIO_USART1_RX. */
 	gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,
 		      GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO_USART1_TX);
-	/*gpio_set_mode(GPIOA, GPIO_MODE_INPUT,
+	
+	gpio_set_mode(GPIOA, GPIO_MODE_INPUT,
 		      GPIO_CNF_INPUT_FLOAT, GPIO_USART1_RX);
-	*/
+	
 	/* Setup UART parameters. */
 	//usart_set_baudrate(USART1, 38400);
 	USART_BRR(USART1) = (u16)((24000000 << 4) / (38400 * 16));
@@ -78,9 +122,48 @@ static void usart_setup(void)
 	usart_set_mode(USART1, USART_MODE_TX_RX);
 	usart_set_parity(USART1, USART_PARITY_NONE);
 	usart_set_flow_control(USART1, USART_FLOWCONTROL_NONE);
-
+	/* Enable USART1 Receive interrupt. */
+	USART_CR1(USART1) |= USART_CR1_RXNEIE;
+	
 	/* Finally enable the USART. */
 	usart_enable(USART1);
+}
+
+
+
+void usart1_isr(void)
+{
+	/* Check if we were called because of RXNE. */
+	if (((USART_CR1(USART1) & USART_CR1_RXNEIE) != 0) &&
+	    ((USART_SR(USART1) & USART_SR_RXNE) != 0)) {
+
+		/* Indicate that we got data. */
+		gpio_toggle(GPIOC, GPIO2);
+
+		/* Retrieve the data from the peripheral. */
+		buff_write_ch(&output_buff, usart_recv(USART1));
+
+		/* Enable transmit interrupt so it sends back the data. */
+		USART_CR1(USART1) |= USART_CR1_TXEIE;
+	}
+
+	/* Check if we were called because of TXE. */
+	if (((USART_CR1(USART1) & USART_CR1_TXEIE) != 0) &&
+	    ((USART_SR(USART1) & USART_SR_TXE) != 0)) {
+
+		s32 data;
+
+		data = buff_read_ch(&output_buff, NULL);
+
+		if (data == -1) {
+			/* Disable the TXE interrupt, it's no longer needed. */
+			USART_CR1(USART1) &= ~USART_CR1_TXEIE;
+			dataReady = 1;
+		} else {
+			/* Put data into the transmit register. */
+			usart_send(USART1, data);
+		}
+	}
 }
 
 static void gpio_setup(void)
@@ -117,7 +200,7 @@ static void spi_setup(void) {
 					    GPIO6 |
 					    GPIO7 );
   */
-  gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ,
+  gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ,
 		      GPIO_CNF_OUTPUT_PUSHPULL, GPIO5 |
 					    GPIO6 );
   /* Reset SPI, SPI_CR1 register cleared, SPI is disabled */
@@ -134,7 +217,7 @@ static void spi_setup(void) {
 //                   SPI_CR1_CPHA_CLK_TRANSITION_1, SPI_CR1_DFF_8BIT,
 //                   SPI_CR1_LSBFIRST);
   spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_32, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
-                  SPI_CR1_CPHA_CLK_TRANSITION_1, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
+                  SPI_CR1_CPHA_CLK_TRANSITION_2, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
 
   /*
    * Set NSS management to software.
@@ -144,7 +227,6 @@ static void spi_setup(void) {
    * ourselves this bit needs to be at least set to 1, otherwise the spi
    * peripheral will not send any data out.
    */
-  //spi_set_bidirectional_transmit_only_mode(SPI2);
   spi_set_master_mode(SPI2);
   spi_enable_software_slave_management(SPI2);
   spi_enable_ss_output(SPI2);
@@ -152,7 +234,6 @@ static void spi_setup(void) {
 
   spi_disable_error_interrupt(SPI2);
   spi_disable_crc(SPI2);
-  
   /* Enable SPI2 periph. */
   spi_enable(SPI2);
 }
@@ -189,11 +270,11 @@ void uart_printf (char *ptr)
 static void ep_cs(int val){
     //BP12 
     if(val == 1){
-      spi_set_nss_high(SPI2);
-      //gpio_set(GPIOB, GPIO12);
+      //spi_set_nss_high(SPI2);
+      gpio_set(GPIOB, GPIO12);
     } else {
-      spi_set_nss_low(SPI2);
-      //gpio_clear(GPIOB, GPIO12);
+      //spi_set_nss_low(SPI2);
+      gpio_clear(GPIOB, GPIO12);
     }
 }
 
@@ -215,102 +296,58 @@ static void epTurnOff(void){
 static void epTurnOn(void){
     ep_cs(0);
     ep_on(0);		// V Chip RESET Set E T Select SETUP get = low get 40% low x TCLK ~60% x TCLK
-    gpio_set(GPIOC, GPIO5); //Vcc
-    delay_ms(5);
+    gpio_set(GPIOC, GPIO5);
+    delay_ms(10);
+
     ep_cs(1);		// Chip Select get high
-    delay_ms(11);	// TVcc_on > 10 ms PE
+    delay_ms(35);	// TVcc_on > 10 ms PE
 
     //Reset Display TCON
     ep_on(1);		// RESET get high
-    delay_ms (19);	// Delay 19 ms
+    delay_ms (39);	// Delay 19 ms
     ep_cs(0);		// Chip Select get high
 }
-
-static void epClear(void){
+static void epSendData(void){
   epTurnOn();
-  
-  int i,j;
+  s32 data;
+
+  int i,j,bufPointer;
   // Chip Select get low
-  delay_ms (20);
+  delay_ms (30);
   // Delay TCS_SI > 1 ms ; TRESET_CS + TCS_SI ≧ 20ms
   // Send Header Byte
   // Send Header Byte ID = 0x06A0 (for 10.2" EPD)
   
   spi_send(SPI2, (uint8_t) 0x06);
   spi_send(SPI2, (uint8_t) 0xA0);
-  delay_ms (125);			// TDELAY1 min 5 ms
+  delay_ms (20);			// TDELAY1 min 5 ms
   // Transmit Display Pattern
+  
   for (i=0 ; i < 1280 ; i++)
   //10.2” EPD resolution= 1024 x 1280
   {
+      bufPointer = 0;
       for (j=0 ; j < 64 ; j++)
       // 1 Line of pixels, 1024/8/2=64 Bytes
       {
 	  spi_send(SPI2, 0x00); 
-	  spi_send(SPI2, 0x00);// // Byte2, Byte1, “Black” “Black”  for example example.
+	  spi_send(SPI2, 0x00); 
+	  /*
+	  data = buff_read_ch(&output_buff, NULL);
+	  spi_send(SPI2, data > 'A' ? 0xFF : 0x00); 
+	  bufPointer++;
+	  
+	  data = buff_read_ch(&output_buff, NULL);
+	  spi_send(SPI2, data > 'A' ? 0xFF : 0x00); 
+	  bufPointer++;*/
 	  //Tdelay2 min 0 ms
 	  //delay_ms (1); 
+	  
       }
       //Tdelay3 min 5ms
       delay_ms(6);
   }
-    //wait for BUSSY
-  //while((GPIOA_IDR & GPIO7) == 0 );
-  ep_cs(1);
-  delay_ms (5000);
-  // Chip Select get low 
-  epTurnOff();
-}
-
-static void epSendData(void){
-  epTurnOn();
-  
-  int i,j,k,l;
-  uint8_t color;
-  if(lfsr113_Bits() > 0.5){
-    color = 0xFF;
-  } else {
-    color = 0x00;
-  }
-  // Chip Select get low
-  delay_ms (50);
-  // Delay TCS_SI > 1 ms ; TRESET_CS + TCS_SI ≧ 20ms
-  // Send Header Byte
-  // Send Header Byte ID = 0x06A0 (for 10.2" EPD)
-  
-  spi_send(SPI2, (uint8_t) 0x06);
-  spi_send(SPI2, (uint8_t) 0xA0);
-  delay_ms (5);			// TDELAY1 min 5 ms
-  // Transmit Display Pattern
-  k = 0;
-  l = 0;
-  for (i=0 ; i < 1280 ; i++)
-  //10.2” EPD resolution= 1024 x 1280
-  {
-      k = 0;
-      for (j=0 ; j < 64 ; j++)
-      // 1 Line of pixels, 1024/8/2=64 Bytes
-      {
-	  spi_send(SPI2, color); 
-	  spi_send(SPI2, color);// // Byte2, Byte1, “Black” “Black”  for example example.
-	  //Tdelay2 min 0 ms
-	  //delay_ms (1); 
-	  if(k > 4) {
-	    k = 0;
-	    color = color == 0xFF ? 0x00 : 0xFF;
-	  } else {
-	    k++;
-	  }
-      }
-      if(l > 80) {
-	  l = 0;
-	  color = color == 0xFF ? 0x00 : 0xFF;
-      } else {
-	  l++;
-      }
-      //Tdelay3 min 5ms
-      delay_ms(6);
-  }
+  gpio_toggle(GPIOC, GPIO0);
     //wait for BUSSY
   //while((GPIOA_IDR & GPIO7) == 0 );
   ep_cs(1);
@@ -331,15 +368,20 @@ int main(void)
 	spi_setup();
 	gpio_clear(GPIOC, GPIO2);
 	
-	//gpio_clear(GPIOC, GPIO7);
 	/* Blink the LED (PC1) on the board with every transmitted byte. */
 	//turn off display
 	gpio_clear(GPIOC, GPIO5 | GPIO6);
 	
-	
-	//epClear();
 	epSendData();
+	gpio_clear(GPIOC, GPIO0 | GPIO1 | GPIO2);
 	while (1) {
+		gpio_set(GPIOC, GPIO0);
+		if(dataReady == 1){
+		    gpio_clear(GPIOC, GPIO0);
+		    dataReady = 0;
+		    epSendData();
+		}
+		//rx_value = spi_read(SPI2);
 		/* LED on/off */
 		gpio_toggle(GPIOC, GPIO1);
 		//uart_printf("Test mode\r\n");
@@ -347,10 +389,11 @@ int main(void)
 	}
 }
 
+
 void delay_ms(int d){
     int i,j;
     for (j = 0; j < d; j++){
-	for (i = 0; i < 4900; i++)	/* Wait a bit. */
+	for (i = 0; i < 4700; i++)	/* Wait a bit. */
 	      __asm__("nop");
     }
 }
