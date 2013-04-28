@@ -47,6 +47,8 @@ OBJCOPY		= $(PREFIX)-objcopy
 OBJDUMP		= $(PREFIX)-objdump
 GDB		= $(PREFIX)-gdb
 
+STM32_DIR = ../stm32f10x
+OPENCM3_DIR = ../libopencm3
 TOOLCHAIN_DIR ?= ../libopencm3
 ifeq ($(wildcard ../libopencm3/lib/libopencm3_stm32f1.a),)
 ifneq ($(strip $(shell which $(CC))),)
@@ -78,6 +80,11 @@ SCRIPT_DIR      = $(OPENCM3_DIR)/share
 else
 SCRIPT_DIR      = $(shell dirname $(shell readlink -f $(shell which $(PREFIX)-gcc)))/../$(PREFIX)/share
 endif
+
+
+CFLAGS          += -I$(STM32_DIR)/src
+LDFLAGS         += -L$(STM32_DIR)/inc
+
 
 OBJS		+= $(BINARY).o
 

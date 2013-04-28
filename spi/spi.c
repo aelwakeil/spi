@@ -21,7 +21,7 @@
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/dma.h>
-#include <libopencm3/cm3/nvic.h>
+#include <libopencm3/stm32/f1/nvic.h>
 #include <libopencm3/stm32/spi.h>
 #include <stdio.h>
 #include <errno.h>
@@ -133,8 +133,8 @@ static void spi_setup(void) {
 //  spi_init_master(SPI2, 1000000, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
 //                   SPI_CR1_CPHA_CLK_TRANSITION_1, SPI_CR1_DFF_8BIT,
 //                   SPI_CR1_LSBFIRST);
-  spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_32, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
-                  SPI_CR1_CPHA_CLK_TRANSITION_1, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
+  spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_4, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
+                  SPI_CR1_CPHA_CLK_TRANSITION_0, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
 
   /*
    * Set NSS management to software.
@@ -226,19 +226,19 @@ static void epTurnOn(void){
     ep_cs(0);		// Chip Select get high
 }
 
-static void epClear(void){
+static void epClear(uint8_t color){
   epTurnOn();
   
   int i,j;
   // Chip Select get low
-  delay_ms (20);
+  delay_ms (50);
   // Delay TCS_SI > 1 ms ; TRESET_CS + TCS_SI ≧ 20ms
   // Send Header Byte
   // Send Header Byte ID = 0x06A0 (for 10.2" EPD)
   
   spi_send(SPI2, (uint8_t) 0x06);
   spi_send(SPI2, (uint8_t) 0xA0);
-  delay_ms (125);			// TDELAY1 min 5 ms
+  delay_ms (5);			// TDELAY1 min 5 ms
   // Transmit Display Pattern
   for (i=0 ; i < 1280 ; i++)
   //10.2” EPD resolution= 1024 x 1280
@@ -246,8 +246,8 @@ static void epClear(void){
       for (j=0 ; j < 64 ; j++)
       // 1 Line of pixels, 1024/8/2=64 Bytes
       {
-	  spi_send(SPI2, 0x00); 
-	  spi_send(SPI2, 0x00);// // Byte2, Byte1, “Black” “Black”  for example example.
+	  spi_send(SPI2, color); 
+	  spi_send(SPI2, color);// // Byte2, Byte1, “Black” “Black”  for example example.
 	  //Tdelay2 min 0 ms
 	  //delay_ms (1); 
       }
@@ -260,6 +260,13 @@ static void epClear(void){
   delay_ms (5000);
   // Chip Select get low 
   epTurnOff();
+}
+
+static uint8_t blackOrWhite(int x, int y){
+    if(x > 28 && x < 100 && y > 280 && y < 1001) {
+      return 0xFF;
+    }
+    return 0x00;
 }
 
 static void epSendData(void){
@@ -288,26 +295,30 @@ static void epSendData(void){
   //10.2” EPD resolution= 1024 x 1280
   {
       k = 0;
-      for (j=0 ; j < 64 ; j++)
-      // 1 Line of pixels, 1024/8/2=64 Bytes
+      for (j=0 ; j < 128 ; j++)
+      // 1 Line of pixels, 1024/8=128 Bytes
       {
+	  color = blackOrWhite(k,l);
 	  spi_send(SPI2, color); 
-	  spi_send(SPI2, color);// // Byte2, Byte1, “Black” “Black”  for example example.
 	  //Tdelay2 min 0 ms
 	  //delay_ms (1); 
-	  if(k > 4) {
-	    k = 0;
-	    color = color == 0xFF ? 0x00 : 0xFF;
-	  } else {
-	    k++;
-	  }
+// 	  if(k > 16 && k < 49 && l > 280 && l < 1001) {
+// 	    /*if(k > 17 && k < 48 && l > 290 && l < 995){
+// 	      if(k == 33 && l > 350 && l < 936 || l > 350 && l < 356 || l > 930 && l < 936){
+// 		color = 0xFF;
+// 	      }else{
+// 		color = 0x00;
+// 	      }
+// 	    }else{
+// 	      color = 0xFF;
+// 	    }*/
+// 	    
+// 	  } else {
+// 	    color = 0x00;
+// 	  }
+	  k++;
       }
-      if(l > 80) {
-	  l = 0;
-	  color = color == 0xFF ? 0x00 : 0xFF;
-      } else {
-	  l++;
-      }
+      l++;
       //Tdelay3 min 5ms
       delay_ms(6);
   }
@@ -326,7 +337,7 @@ int main(void)
 	gpio_setup();
 	gpio_set(GPIOC, GPIO0 | GPIO1 | GPIO2);
 	gpio_clear(GPIOC, GPIO0);
-	//usart_setup();
+	usart_setup();
 	gpio_clear(GPIOC, GPIO1);
 	spi_setup();
 	gpio_clear(GPIOC, GPIO2);
@@ -336,8 +347,9 @@ int main(void)
 	//turn off display
 	gpio_clear(GPIOC, GPIO5 | GPIO6);
 	
-	
-	//epClear();
+	//epClear(0x00);
+	//delay_ms(1000);
+	//epClear(0xFF);
 	epSendData();
 	while (1) {
 		/* LED on/off */

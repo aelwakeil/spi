@@ -24,65 +24,49 @@
 #include <stdio.h>
 #include <errno.h>
 
-#define BUFFER_SIZE 1024
-
-struct uartBuff {
-	u8 *data;
-	s32 size;
-	u32 begin;
-	u32 end;
-};
-
-#define RING_SIZE(RING)  ((RING)->size - 1)
-#define RING_DATA(RING)  (RING)->data
-#define RING_EMPTY(RING) ((RING)->begin == (RING)->end)
-struct uartBuff output_buff;
-u8 output_uart_buffer[BUFFER_SIZE];
 
 void delay_ms(int d);
 int SendChar (int ch);
 void uart_printf (char *ptr);
 
-static void buff_init(struct uartBuff *buff, u8 *buf, s32 size)
+static u8 data[50];
+static int data_size = 0;
+static int data_pointer = 0;
+
+static u8 btBuff[1024];
+static int btBuff_size = 0;
+static int btBuff_pointer = 0;
+
+static void clock_setup(void)
 {
-	buff->data = buf;
-	buff->size = size;
-	buff->begin = 0;
-	buff->end = 0;
+	rcc_clock_setup_in_hse_8mhz_out_24mhz();
+	/* Enable GPIOA, GPIOB, GPIOC clock. */
+	rcc_peripheral_enable_clock(&RCC_APB2ENR,
+				    RCC_APB2ENR_IOPAEN | RCC_APB2ENR_IOPBEN | RCC_APB2ENR_IOPCEN);
+
+	/* Enable clocks for GPIO port A (for GPIO_USART1_TX) and USART1. */
+	/*rcc_peripheral_enable_clock(&RCC_APB2ENR, RCC_APB2ENR_IOPAEN |
+				    RCC_APB2ENR_AFIOEN | RCC_APB2ENR_USART1EN | RCC_APB1ENR_USART3EN);
+*/	
+	rcc_peripheral_enable_clock(&RCC_APB2ENR, RCC_APB2ENR_USART1EN);
+	rcc_peripheral_enable_clock(&RCC_APB1ENR, RCC_APB1ENR_USART3EN);
+	rcc_peripheral_enable_clock(&RCC_APB2ENR, RCC_APB2ENR_IOPAEN | RCC_APB2ENR_AFIOEN);
+	/* Enable SPI2 Periph and gpio clocks */
+	rcc_peripheral_enable_clock(&RCC_APB1ENR,
+				    RCC_APB1ENR_SPI2EN);
 }
 
-
-static s32 buff_write_ch(struct uartBuff *buff, u8 ch)
+static void gpio_setup(void)
 {
-	if (((buff->end + 1) % buff->size) != buff->begin) {
-		buff->data[buff->end++] = ch;
-		buff->end %= buff->size;
-		return (u32)ch;
-	}
-
-	return -1;
+	/* Set GPIO1 (in GPIO port C) to 'output push-pull'. */
+	gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ,
+		      GPIO_CNF_OUTPUT_PUSHPULL, GPIO0 | GPIO1 | GPIO2 | GPIO4);
 }
-static s32 buff_read_ch(struct uartBuff *buff, u8 *ch)
-{
-	s32 ret = -1;
-
-	if (buff->begin != buff->end) {
-		ret = buff->data[buff->begin++];
-		buff->begin %= buff->size;
-		if (ch)
-			*ch = ret;
-	}
-
-	return ret;
-}
-
 
 static void usart_setup(void)
 {
-	/* Enable the USART1 interrupt. */
+  	/* Enable the USART1 interrupt. */
 	nvic_enable_irq(NVIC_USART1_IRQ);
-
-	buff_init(&output_buff, output_uart_buffer, BUFFER_SIZE);
 	
 	/* Setup GPIO pin GPIO_USART1_TX and GPIO_USART1_RX. */
 	gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,
@@ -93,59 +77,129 @@ static void usart_setup(void)
 	
 	/* Setup UART parameters. */
 	//usart_set_baudrate(USART1, 38400);
-	USART_BRR(USART1) = (u16)((24000000 << 4) / (38400 * 16));
+	USART_BRR(USART1) = (u16)((24000000 << 4) / (115200 * 16));
 	usart_set_databits(USART1, 8);
 	usart_set_stopbits(USART1, USART_STOPBITS_1);
 	usart_set_mode(USART1, USART_MODE_TX_RX);
 	usart_set_parity(USART1, USART_PARITY_NONE);
 	usart_set_flow_control(USART1, USART_FLOWCONTROL_NONE);
-	/* Enable USART1 Receive interrupt. */
-	USART_CR1(USART1) |= USART_CR1_RXNEIE;
 	
+	usart_disable_error_interrupt(USART1);
+	usart_enable_rx_interrupt(USART1);
+	usart_enable_tx_interrupt(USART1);	
 	/* Finally enable the USART. */
 	usart_enable(USART1);
+	///////////////////////////////////////////////////////////////
+	/* Enable the USART3 interrupt. */
+	nvic_enable_irq(NVIC_USART3_IRQ);
+	
+	/* Setup GPIO pin GPIO_USART3_TX and GPIO_USART3_RX. */
+	gpio_set_mode(GPIOC, GPIO_MODE_INPUT,
+		      GPIO_CNF_INPUT_FLOAT, GPIO11);
+	
+	gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ,
+		    GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO10);
+	
+	/* Setup UART parameters. */
+	//usart_set_baudrate(USART3, 38400);
+	USART_BRR(USART3) = (u16)((24000000 << 4) / (115200 * 16));
+	usart_set_databits(USART3, 8);
+	usart_set_stopbits(USART3, USART_STOPBITS_1);
+	usart_set_mode(USART3, USART_MODE_TX_RX);
+	usart_set_parity(USART3, USART_PARITY_NONE);
+	usart_set_flow_control(USART3, USART_FLOWCONTROL_NONE);
+	
+	usart_disable_error_interrupt(USART3);
+	usart_enable_rx_interrupt(USART3);
+	usart_enable_tx_interrupt(USART3);
+	/* Enable USART3 Receive interrupt. */
+	//USART_CR1(USART3) |= USART_CR1_RXNEIE;
+	
+	/* Finally enable the USART. */
+	usart_enable(USART3);
 }
 
 
 
+void usart3_isr(void)
+{
+
+	/* Check if we were called because of RXNE. */
+	if (((USART_CR1(USART3) & USART_CR1_RXNEIE) != 0) &&
+	    ((USART_SR(USART3) & USART_SR_RXNE) != 0)) {
+
+		/* Indicate that we got data. */
+		gpio_toggle(GPIOC, GPIO2);
+
+		/* Retrieve the data from the peripheral. */
+		data[data_size] = usart_recv(USART3);
+		if(data_size < 50){
+		  data_size++;
+		} else {
+		  data_size = 0;
+		}
+		/* Enable transmit interrupt so it sends back the data. */
+		USART_CR1(USART1) |= USART_CR1_TXEIE;
+	}
+
+	if (((USART_CR1(USART3) & USART_CR1_TXEIE) != 0) &&
+	    ((USART_SR(USART3) & USART_SR_TXE) != 0)) {
+
+		/* Indicate that we are sending out data. */
+		// gpio_toggle(GPIOA, GPIO7);
+
+		/* Put data into the transmit register. */
+		for(int i=0;i<btBuff_size;i++){
+		  usart_send_blocking(USART3, btBuff[i]);
+		}
+		btBuff_size = 0;
+		/* Disable the TXE interrupt as we don't need it anymore. */
+		USART_CR1(USART3) &= ~USART_CR1_TXEIE;
+	}
+}
 void usart1_isr(void)
 {
+
 	/* Check if we were called because of RXNE. */
 	if (((USART_CR1(USART1) & USART_CR1_RXNEIE) != 0) &&
 	    ((USART_SR(USART1) & USART_SR_RXNE) != 0)) {
 
-		/* Indicate that we got data. */
-		gpio_toggle(GPIOC, GPIO12);
-
-		/* Retrieve the data from the peripheral. */
-		buff_write_ch(&output_buff, usart_recv(USART1));
-
-		/* Enable transmit interrupt so it sends back the data. */
-		USART_CR1(USART1) |= USART_CR1_TXEIE;
+		
+		
+		btBuff[btBuff_size] = usart_recv(USART1);
+		if(btBuff[btBuff_size] == 13){
+		  /* Indicate that we are sending data. */
+		  gpio_toggle(GPIOC, GPIO0);
+		  USART_CR1(USART3) |= USART_CR1_TXEIE;
+		}
+		if(btBuff_size < 1024){
+		  btBuff_size++;
+		} else {
+		  btBuff_size = 0;
+		}
 	}
 
 	/* Check if we were called because of TXE. */
 	if (((USART_CR1(USART1) & USART_CR1_TXEIE) != 0) &&
 	    ((USART_SR(USART1) & USART_SR_TXE) != 0)) {
 
-		s32 data;
+		
 
-		data = buff_read_ch(&output_buff, NULL);
-
-		if (data == -1) {
-			/* Disable the TXE interrupt, it's no longer needed. */
-			USART_CR1(USART1) &= ~USART_CR1_TXEIE;
-		} else {
-			/* Put data into the transmit register. */
-			usart_send(USART1, data);
+		/* Put data into the transmit register. */
+		for(int i=0;i<data_size;i++){
+		  /* Indicate that we are sending out data. */
+		  gpio_toggle(GPIOA, GPIO1);
+		  usart_send_blocking(USART1, data[i]);
 		}
+		data_size = 0;
+		/* Disable the TXE interrupt as we don't need it anymore. */
+		USART_CR1(USART1) &= ~USART_CR1_TXEIE;
 	}
 }
 
-
 /*******************************************************************************
 * Function Name  : SendChar
-* Description    : Send a char by USART1
+* Description    : Send a char by USART3
 * Input          : None
 * Output         : None
 * Return         : None
@@ -158,7 +212,7 @@ int SendChar (int ch)  					/* Write character to Serial Port     */
 
 /*******************************************************************************
 * Function Name  : uart_printf
-* Description    : Send a string by USART1
+* Description    : Send a string by USART3
 * Input          : None
 * Output         : None
 * Return         : None
@@ -170,4 +224,39 @@ void uart_printf (char *ptr)
 		ptr++;	
 	}								
 }
+
+void delay_ms(int d){
+    int i,j;
+    for (j = 0; j < d; j++){
+	for (i = 0; i < 4700; i++)	/* Wait a bit. */
+	      __asm__("nop");
+    }
+}
+
+int main(void)
+{
+  int c=0;
+	clock_setup();
+	gpio_setup();
+	gpio_set(GPIOC, GPIO0 | GPIO1 | GPIO2);
+	gpio_clear(GPIOC, GPIO0);
+	//enable bt
+	gpio_set(GPIOC, GPIO4);
+	usart_setup();
+	
+	
+	gpio_clear(GPIOC, GPIO0 | GPIO1 | GPIO2);
+	while (1) {
+		//rx_value = spi_read(SPI2);
+		/* LED on/off */
+		if(c%5 == 0){
+		  //uart_printf("still here\r\n");
+		}
+		gpio_toggle(GPIOC, GPIO1);
+		delay_ms(1000);
+		c++;
+	}
+}
+
+
 

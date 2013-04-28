@@ -200,7 +200,7 @@ static void spi_setup(void) {
 					    GPIO6 |
 					    GPIO7 );
   */
-  gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ,
+  gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ,
 		      GPIO_CNF_OUTPUT_PUSHPULL, GPIO5 |
 					    GPIO6 );
   /* Reset SPI, SPI_CR1 register cleared, SPI is disabled */
@@ -227,6 +227,7 @@ static void spi_setup(void) {
    * ourselves this bit needs to be at least set to 1, otherwise the spi
    * peripheral will not send any data out.
    */
+  //spi_set_bidirectional_transmit_only_mode(SPI2);
   spi_set_master_mode(SPI2);
   spi_enable_software_slave_management(SPI2);
   spi_enable_ss_output(SPI2);
@@ -234,6 +235,7 @@ static void spi_setup(void) {
 
   spi_disable_error_interrupt(SPI2);
   spi_disable_crc(SPI2);
+  
   /* Enable SPI2 periph. */
   spi_enable(SPI2);
 }
@@ -270,11 +272,11 @@ void uart_printf (char *ptr)
 static void ep_cs(int val){
     //BP12 
     if(val == 1){
-      //spi_set_nss_high(SPI2);
-      gpio_set(GPIOB, GPIO12);
+      spi_set_nss_high(SPI2);
+      //gpio_set(GPIOB, GPIO12);
     } else {
-      //spi_set_nss_low(SPI2);
-      gpio_clear(GPIOB, GPIO12);
+      spi_set_nss_low(SPI2);
+      //gpio_clear(GPIOB, GPIO12);
     }
 }
 
@@ -313,14 +315,14 @@ static void epSendData(void){
 
   int i,j,bufPointer;
   // Chip Select get low
-  delay_ms (30);
+  delay_ms (50);
   // Delay TCS_SI > 1 ms ; TRESET_CS + TCS_SI ≧ 20ms
   // Send Header Byte
   // Send Header Byte ID = 0x06A0 (for 10.2" EPD)
   
   spi_send(SPI2, (uint8_t) 0x06);
   spi_send(SPI2, (uint8_t) 0xA0);
-  delay_ms (20);			// TDELAY1 min 5 ms
+  delay_ms (5);			// TDELAY1 min 5 ms
   // Transmit Display Pattern
   
   for (i=0 ; i < 1280 ; i++)
@@ -363,15 +365,11 @@ int main(void)
 	gpio_setup();
 	gpio_set(GPIOC, GPIO0 | GPIO1 | GPIO2);
 	gpio_clear(GPIOC, GPIO0);
-	//usart_setup();
+	usart_setup();
 	gpio_clear(GPIOC, GPIO1);
 	spi_setup();
 	gpio_clear(GPIOC, GPIO2);
-	
-	/* Blink the LED (PC1) on the board with every transmitted byte. */
-	//turn off display
-	gpio_clear(GPIOC, GPIO5 | GPIO6);
-	
+		
 	epSendData();
 	gpio_clear(GPIOC, GPIO0 | GPIO1 | GPIO2);
 	while (1) {
