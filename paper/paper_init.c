@@ -13,7 +13,7 @@ void clock_setup(void)
 	//UARTs
 	rcc_peripheral_enable_clock(&RCC_APB2ENR, RCC_APB2ENR_USART1EN);
 	rcc_peripheral_enable_clock(&RCC_APB1ENR, RCC_APB1ENR_USART3EN);
-	rcc_peripheral_enable_clock(&RCC_APB2ENR, RCC_APB2ENR_IOPAEN | RCC_APB2ENR_AFIOEN);
+	rcc_peripheral_enable_clock(&RCC_APB2ENR, RCC_APB2ENR_AFIOEN);
 	/* Enable SPI2 Periph and gpio clocks */
 	rcc_peripheral_enable_clock(&RCC_APB1ENR,
 				    RCC_APB1ENR_SPI2EN);
@@ -23,5 +23,5 @@ void gpio_setup(void)
 {
 	/* Set GPIO1 (in GPIO port C) to 'output push-pull'. */
 	gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ,
-		      GPIO_CNF_OUTPUT_PUSHPULL, GPIO0 | GPIO1 | GPIO2 | GPIO4);
+		      GPIO_CNF_OUTPUT_PUSHPULL, GPIO0 | GPIO1 | GPIO2 | GPIO4 | GPIO12);
 }

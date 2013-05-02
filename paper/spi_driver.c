@@ -1,6 +1,7 @@
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/spi.h>
 
+
 #include "spi_driver.h"
 #include "paper.h"
 
@@ -29,7 +30,7 @@ void spi_setup(void) {
    * Data frame format: 8-bit
    * Frame format: MSB First
    */
-  spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_4, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
+  spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_32, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
                   SPI_CR1_CPHA_CLK_TRANSITION_1, SPI_CR1_DFF_8BIT, SPI_CR1_LSBFIRST);
 
   spi_set_master_mode(SPI2);
@@ -118,11 +119,38 @@ void epClear(unsigned char color){
   // Chip Select get low 
   epTurnOff();
 }
+/*
+static u8 switchEndian(u8 data){
+  if(htonl(data) == data){
+   return (((data>>24)&0xff) | ((data<<8)&0xff0000) | ((data>>8)&0xff00) | ((data<<24)&0xff000000)); 
+  }
+  return data;
+}*/
+
+void EpStartSend(void){
+  epTurnOn();
+  // Chip Select get low
+  delay_ms (50);
+  // Delay TCS_SI > 1 ms ; TRESET_CS + TCS_SI ≧ 20ms
+  // Send Header Byte
+  // Send Header Byte ID = 0x06A0 (for 10.2" EPD)
+  
+  spi_send(SPI2, (uint8_t) 0x06);
+  spi_send(SPI2, (uint8_t) 0xA0);
+  delay_ms (5);			// TDELAY1 min 5 ms  
+}
+
+void EpStopSend(void){
+  ep_cs(1);
+  delay_ms (5000);
+  // Chip Select get low 
+  epTurnOff();
+}
 
 void epSendData(uartBuff *buff){
   epTurnOn();
   
-  int i,j,k;
+  int i,j,k,line;
   // Chip Select get low
   delay_ms (50);
   // Delay TCS_SI > 1 ms ; TRESET_CS + TCS_SI ≧ 20ms
@@ -134,13 +162,15 @@ void epSendData(uartBuff *buff){
   delay_ms (5);			// TDELAY1 min 5 ms
   // Transmit Display Pattern
   k = 0;
+  line = 0;
   for (i=0 ; i < 1280 ; i++)
   //10.2” EPD resolution= 1024 x 1280
   {
       for (j=0 ; j < 128 ; j++)
       // 1 Line of pixels, 1024/8=128 Bytes
       {
-	  spi_send(SPI2, buff->buf[k]); 
+	  
+	  spi_send(SPI2, ~(buff->buf[k])); 
 	  k++;
 	  if(k >= EP_BUFF_SIZE){
 	    k = 0;
@@ -155,5 +185,6 @@ void epSendData(uartBuff *buff){
   delay_ms (5000);
   // Chip Select get low 
   epTurnOff();
+  buff->complete = 1;
 }
 

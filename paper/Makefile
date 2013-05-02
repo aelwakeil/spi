@@ -1,7 +1,7 @@
 # BINARY = paper paper_init spi_driver uart_driver
 # 
  LDSCRIPT = ../stm32vl-discovery.ld
-# LDFLAGS += -Wl,-Ttext=0x8002000
+ #LDFLAGS += -Wl,-Ttext=0x8002000
  CFLAGS += -std=c99
 # 
 # 
