@@ -1,7 +1,7 @@
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/spi.h>
 
-
+#include "uart_driver.h"
 #include "spi_driver.h"
 #include "paper.h"
 
@@ -30,7 +30,7 @@ void spi_setup(void) {
    * Data frame format: 8-bit
    * Frame format: MSB First
    */
-  spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_32, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
+  spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_16, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
                   SPI_CR1_CPHA_CLK_TRANSITION_1, SPI_CR1_DFF_8BIT, SPI_CR1_LSBFIRST);
 
   spi_set_master_mode(SPI2);
@@ -174,6 +174,10 @@ void epSendData(uartBuff *buff){
 	  k++;
 	  if(k >= EP_BUFF_SIZE){
 	    k = 0;
+	    //wait for owerflow
+	    /*while(buff->owcounter > 0 && buff->pointer < 100 && buff->p < EP_BYTES){
+	      //delay_ms(1);
+	    }*/
 	  }
       }
       //Tdelay3 min 5ms

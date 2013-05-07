@@ -1,13 +1,18 @@
 #ifndef __PAPER_H__
 #define __PAPER_H__
 
+
 void delay_ms(int d);
 //#define	EP_BUFF_SIZE	1
 #define	EP_BUFF_SIZE	80000
-//#define	EP_BUFF_SIZE	163840
+#define	EP_BYTES	163796//163840
 //#define		EP_ROUND_BUF	40000
 
 //#define		EP_ROUND_BUF	1
+
+typedef enum {
+  DATAMODE, CONFIGMODE, IDDLE
+} uart_mode;
 
 typedef struct uart_buff
 {
@@ -18,7 +23,9 @@ typedef struct uart_buff
   int rdy;
   int owcounter;
   int complete;
+  uart_mode uartMode;
 } uartBuff;
+
 
 /*
 

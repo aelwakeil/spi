@@ -7,6 +7,9 @@ paper.o: paper.c ../libopencm3/include/libopencm3/stm32/gpio.h \
  ../libopencm3/include/libopencm3/cm3/common.h \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/stdint.h \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/include/stdbool.h \
+ ../libopencm3/include/libopencm3/stm32/pwr.h \
+ ../libopencm3/include/libopencm3/stm32/f1/pwr.h \
+ ../libopencm3/include/libopencm3/stm32/common/pwr_common_all.h \
  ../libopencm3/include/libopencm3/stm32/usart.h \
  ../libopencm3/include/libopencm3/stm32/f1/usart.h \
  ../libopencm3/include/libopencm3/stm32/common/usart_common_all.h \

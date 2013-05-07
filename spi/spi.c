@@ -22,6 +22,8 @@
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/dma.h>
 #include <libopencm3/stm32/f1/nvic.h>
+
+#include <libopencm3/stm32/f1/dma.h>
 #include <libopencm3/stm32/spi.h>
 #include <stdio.h>
 #include <errno.h>
@@ -72,7 +74,7 @@ static void usart_setup(void)
 	*/
 	/* Setup UART parameters. */
 	//usart_set_baudrate(USART1, 38400);
-	USART_BRR(USART1) = (u16)((24000000 << 4) / (38400 * 16));
+	USART_BRR(USART1) = (u16)((24000000 << 4) / (155200 * 16));
 	usart_set_databits(USART1, 8);
 	usart_set_stopbits(USART1, USART_STOPBITS_1);
 	usart_set_mode(USART1, USART_MODE_TX_RX);
@@ -81,6 +83,11 @@ static void usart_setup(void)
 
 	/* Finally enable the USART. */
 	usart_enable(USART1);
+	nvic_set_priority(NVIC_DMA1_CHANNEL7_IRQ, 0);
+	nvic_enable_irq(NVIC_DMA1_CHANNEL7_IRQ);
+
+	nvic_set_priority(NVIC_DMA1_CHANNEL6_IRQ, 0);
+	nvic_enable_irq(NVIC_DMA1_CHANNEL6_IRQ);
 }
 
 static void gpio_setup(void)

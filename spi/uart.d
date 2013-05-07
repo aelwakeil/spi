@@ -13,6 +13,8 @@ uart.o: uart.c ../libopencm3/include/libopencm3/stm32/f1/rcc.h \
  ../libopencm3/include/libopencm3/cm3/nvic.h \
  ../libopencm3/include/libopencm3/dispatch/nvic.h \
  ../libopencm3/include/libopencm3/stm32/f1/nvic.h \
+ ../libopencm3/include/libopencm3/stm32/f1/dma.h \
+ ../libopencm3/include/libopencm3/stm32/common/dma_common_f13.h \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/stdio.h \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/_ansi.h \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/newlib.h \

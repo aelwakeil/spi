@@ -21,6 +21,7 @@
 #include <libopencm3/stm32/f1/gpio.h>
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/cm3/nvic.h>
+#include <libopencm3/stm32/f1/dma.h>
 #include <stdio.h>
 #include <errno.h>
 
@@ -29,13 +30,13 @@ void delay_ms(int d);
 int SendChar (int ch);
 void uart_printf (char *ptr);
 
-static u8 data[50];
-static int data_size = 0;
-static int data_pointer = 0;
+u8 data[50];
+int data_size = 0;
+int data_pointer = 0;
 
-static u8 btBuff[1024];
-static int btBuff_size = 0;
-static int btBuff_pointer = 0;
+u8 btBuff[1024];
+int btBuff_size = 0;
+int btBuff_pointer = 0;
 
 static void clock_setup(void)
 {
@@ -60,13 +61,15 @@ static void gpio_setup(void)
 {
 	/* Set GPIO1 (in GPIO port C) to 'output push-pull'. */
 	gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ,
-		      GPIO_CNF_OUTPUT_PUSHPULL, GPIO0 | GPIO1 | GPIO2 | GPIO4);
+		      GPIO_CNF_OUTPUT_PUSHPULL, GPIO0 | GPIO1 | GPIO2 | GPIO4 | GPIO12);
 }
 
 static void usart_setup(void)
 {
   	/* Enable the USART1 interrupt. */
 	nvic_enable_irq(NVIC_USART1_IRQ);
+	/* Enable the USART3 interrupt. */
+	nvic_enable_irq(NVIC_USART3_IRQ);
 	
 	/* Setup GPIO pin GPIO_USART1_TX and GPIO_USART1_RX. */
 	gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ,
@@ -89,17 +92,44 @@ static void usart_setup(void)
 	usart_enable_tx_interrupt(USART1);	
 	/* Finally enable the USART. */
 	usart_enable(USART1);
+	//tx
+	//nvic_set_priority(NVIC_DMA1_CHANNEL4_IRQ, 0);
+	//nvic_enable_irq(NVIC_DMA1_CHANNEL4_IRQ);
+	//Rx
+	//nvic_set_priority(NVIC_DMA1_CHANNEL5_IRQ, 0);
+	//nvic_enable_irq(NVIC_DMA1_CHANNEL5_IRQ);
+
 	///////////////////////////////////////////////////////////////
-	/* Enable the USART3 interrupt. */
-	nvic_enable_irq(NVIC_USART3_IRQ);
+
 	
 	/* Setup GPIO pin GPIO_USART3_TX and GPIO_USART3_RX. */
-	gpio_set_mode(GPIOC, GPIO_MODE_INPUT,
-		      GPIO_CNF_INPUT_FLOAT, GPIO11);
-	
+	AFIO_MAPR |= AFIO_MAPR_USART3_REMAP_PARTIAL_REMAP;
+	/* RESET */
+	gpio_set(GPIOC, GPIO12);
+	gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ,
+			GPIO_CNF_OUTPUT_OPENDRAIN, GPIO12);
+
+	/* TX */
 	gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ,
-		    GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO10);
+			GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO10);
+	/* RX */
+	gpio_set_mode(GPIOC, GPIO_MODE_INPUT,
+			GPIO_CNF_INPUT_FLOAT, GPIO11);
+
+	/* CTS */
+	gpio_set_mode(GPIOB, GPIO_MODE_INPUT,
+			GPIO_CNF_INPUT_PULL_UPDOWN, GPIO8);
+	/* RTS */
+	gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ,
+			GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO9);
+
+	/*AFIO_MAPR |= AFIO_MAPR_USART3_REMAP_PARTIAL_REMAP;
+	gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ,
+		      GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO_USART3_PR_TX);
 	
+	gpio_set_mode(GPIOC, GPIO_MODE_INPUT,
+		      GPIO_CNF_INPUT_FLOAT, GPIO_USART3_PR_RX);
+	*/	      
 	/* Setup UART parameters. */
 	//usart_set_baudrate(USART3, 38400);
 	USART_BRR(USART3) = (u16)((24000000 << 4) / (115200 * 16));
@@ -121,25 +151,113 @@ static void usart_setup(void)
 
 
 
+static void dma_write(char *data, int size)
+{
+	/*
+	 * Using channel 4 for USART1_TX
+	 */
+
+	/* Reset DMA channel*/
+	dma_channel_reset(DMA1, DMA_CHANNEL4);
+
+	dma_set_peripheral_address(DMA1, DMA_CHANNEL4, (u32)&USART1_DR);
+	dma_set_memory_address(DMA1, DMA_CHANNEL4, (u32)data);
+	dma_set_number_of_data(DMA1, DMA_CHANNEL4, size);
+	dma_set_read_from_memory(DMA1, DMA_CHANNEL4);
+	dma_enable_memory_increment_mode(DMA1, DMA_CHANNEL4);
+	dma_set_peripheral_size(DMA1, DMA_CHANNEL4, DMA_CCR_PSIZE_8BIT);
+	dma_set_memory_size(DMA1, DMA_CHANNEL4, DMA_CCR_MSIZE_8BIT);
+	dma_set_priority(DMA1, DMA_CHANNEL4, DMA_CCR_PL_VERY_HIGH);
+
+	dma_enable_transfer_complete_interrupt(DMA1, DMA_CHANNEL1);
+
+	dma_enable_channel(DMA1, DMA_CHANNEL4);
+
+        usart_enable_tx_dma(USART1);
+}
+
+volatile int transfered = 0;
+
+void dma1_channel5_isr(void)
+{
+	if ((DMA1_ISR &DMA_ISR_TCIF7) != 0) {
+		DMA1_IFCR |= DMA_IFCR_CTCIF5;
+
+		transfered = 1;
+	}
+
+	dma_disable_transfer_complete_interrupt(DMA1, DMA_CHANNEL4);
+
+	usart_disable_tx_dma(USART1);
+
+	dma_disable_channel(DMA1, DMA_CHANNEL4);
+}
+
+static void dma_read(char *data, int size)
+{
+	/*
+	 * Using channel 5 for USART1_RX
+	 */
+
+	/* Reset DMA channel*/
+	dma_channel_reset(DMA1, DMA_CHANNEL5);
+
+	dma_set_peripheral_address(DMA1, DMA_CHANNEL5, (u32)&USART1_DR);
+	dma_set_memory_address(DMA1, DMA_CHANNEL5, (u32)data);
+	dma_set_number_of_data(DMA1, DMA_CHANNEL5, size);
+	dma_set_read_from_peripheral(DMA1, DMA_CHANNEL5);
+	dma_enable_memory_increment_mode(DMA1, DMA_CHANNEL5);
+	dma_set_peripheral_size(DMA1, DMA_CHANNEL5, DMA_CCR_PSIZE_8BIT);
+	dma_set_memory_size(DMA1, DMA_CHANNEL5, DMA_CCR_MSIZE_8BIT);
+	dma_set_priority(DMA1, DMA_CHANNEL5, DMA_CCR_PL_HIGH);
+
+	dma_enable_transfer_complete_interrupt(DMA1, DMA_CHANNEL5);
+
+	dma_enable_channel(DMA1, DMA_CHANNEL5);
+
+        usart_enable_rx_dma(USART1);
+}
+
+volatile int received = 0;
+
+void dma1_channel4_isr(void)
+{
+	if ((DMA1_ISR &DMA_ISR_TCIF4) != 0) {
+		DMA1_IFCR |= DMA_IFCR_CTCIF5;
+
+		received = 1;
+	}
+
+	dma_disable_transfer_complete_interrupt(DMA1, DMA_CHANNEL4);
+
+	usart_disable_rx_dma(USART1);
+
+	dma_disable_channel(DMA1, DMA_CHANNEL4);
+}
+
+
+
 void usart3_isr(void)
 {
-
+    u8 newdata;
 	/* Check if we were called because of RXNE. */
 	if (((USART_CR1(USART3) & USART_CR1_RXNEIE) != 0) &&
 	    ((USART_SR(USART3) & USART_SR_RXNE) != 0)) {
 
 		/* Indicate that we got data. */
 		gpio_toggle(GPIOC, GPIO2);
-
+	
 		/* Retrieve the data from the peripheral. */
-		data[data_size] = usart_recv(USART3);
-		if(data_size < 50){
+		newdata = usart_recv(USART3);
+		usart_send_blocking(USART1, newdata);
+		/*newdata = data[data_size];
+		 * if(data_size < 50){
 		  data_size++;
 		} else {
 		  data_size = 0;
-		}
+		}*/
 		/* Enable transmit interrupt so it sends back the data. */
-		USART_CR1(USART1) |= USART_CR1_TXEIE;
+		//USART_CR1(USART1) |= USART_CR1_TXEIE;
 	}
 
 	if (((USART_CR1(USART3) & USART_CR1_TXEIE) != 0) &&
@@ -160,22 +278,30 @@ void usart3_isr(void)
 void usart1_isr(void)
 {
 
+      u8 newdata;
 	/* Check if we were called because of RXNE. */
 	if (((USART_CR1(USART1) & USART_CR1_RXNEIE) != 0) &&
 	    ((USART_SR(USART1) & USART_SR_RXNE) != 0)) {
 
 		
-		
-		btBuff[btBuff_size] = usart_recv(USART1);
-		if(btBuff[btBuff_size] == 13){
 		  /* Indicate that we are sending data. */
 		  gpio_toggle(GPIOC, GPIO0);
+		newdata = usart_recv(USART1);
+		usart_send_blocking(USART1, newdata);
+		if(newdata == 13){
+		  usart_send_blocking(USART1, '\n');
 		  USART_CR1(USART3) |= USART_CR1_TXEIE;
-		}
-		if(btBuff_size < 1024){
-		  btBuff_size++;
+		  if(btBuff_size > 0 && btBuff[btBuff_size-1] != '$'){
+		    btBuff[btBuff_size] = newdata;
+		    btBuff_size++;
+		  }
 		} else {
-		  btBuff_size = 0;
+		  btBuff[btBuff_size] = newdata;
+		  if(btBuff_size < 1024){
+		    btBuff_size++;
+		  } else {
+		    btBuff_size = 0;
+		  }
 		}
 	}
 
@@ -241,10 +367,10 @@ int main(void)
 	gpio_set(GPIOC, GPIO0 | GPIO1 | GPIO2);
 	gpio_clear(GPIOC, GPIO0);
 	//enable bt
-	gpio_set(GPIOC, GPIO4);
+	gpio_set(GPIOC, GPIO4 | GPIO12);
 	usart_setup();
 	
-	
+		
 	gpio_clear(GPIOC, GPIO0 | GPIO1 | GPIO2);
 	while (1) {
 		//rx_value = spi_read(SPI2);

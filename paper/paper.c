@@ -8,22 +8,30 @@
 #include "paper.h"
 
 #define VERBOSE
+//number of seconds to sleep
+#define SLEEP_TIME 300
+
+//#DEFINE PRODUCTION
 
 uartBuff uart_buff;
 
-int main(void)
-{
-  int counter = 0;
-	//initialize buffer
+static void init_ep_buff(void){
 	uart_buff.p = 0;
 	uart_buff.pointer = 0;
 	uart_buff.rdy = 0;
 	uart_buff.owcounter = 0;
 	uart_buff.complete = 0;
-	
+	uart_buff.uartMode = IDDLE;
+}
+
+int main(void)
+{
+  int counter = 0;
+	//initialize buffer
+	init_ep_buff();
 	clock_setup();
 	gpio_setup();
-	//gpio_set(GPIOC, GPIO0 | GPIO1 | GPIO2);
+	gpio_set(GPIOC, GPIO0 | GPIO1 | GPIO2);
 	//gpio_clear(GPIOC, GPIO0);
 	usart_setup(&uart_buff);
 	//gpio_clear(GPIOC, GPIO1);
@@ -37,36 +45,28 @@ int main(void)
 	//turn on BT
 	gpio_set(GPIOC, GPIO4 | GPIO12);
 		
-	epClear(0x00);
+	//epClear(0x00);
 	while (1) {
-		/*if((bbufCounter - bbufReaded) > 0){
-		  spi_send(SPI2, bbuff[bbufReaded]);
-		  bbufReaded++;
-		  if(bbufReaded >= EP_ROUND_BUF ){
-		    delay_ms(6);
-		    bbufReaded = 0;
-		  }
-		} else if(bbufCounter > 0) {
-		  bbufCounter = 0;
-		  bbufReaded = 0;
-		}*/
 		if(uart_buff.rdy == 1){
+		    uart_printf("Painting started!\n\r");
 		    epSendData(&uart_buff);
 		    //uart_buff.start = 0;
 		    //uart_buff.owcounter = 0;
 		}
 		if(uart_buff.complete == 1){
+		    //erase buffer
 		    for(int c = 0;c<EP_BUFF_SIZE;c++){
 		      uart_buff.buf[c] = 0x00;
 		    }
-		    uart_buff.complete = 0;
-		    uart_buff.rdy = 0;
-		    uart_buff.pointer = 0;
+		    init_ep_buff();
 		}
 		/* LED on/off */
 		gpio_toggle(GPIOC, GPIO0);
-		delay_ms(1000);
-		if(counter%5 == 0){
+		//delay_ms(1000);
+		if(uart_buff.uartMode != IDDLE){
+		  counter = 0;
+		}
+		if(counter%5 == 0 && uart_buff.uartMode == IDDLE){
 #ifdef VERBOSE
 		  uart_printf(",rdy: ");
 		  usart_send_blocking(USART1, (unsigned char) uart_buff.rdy+48);
@@ -77,7 +77,7 @@ int main(void)
 		  uart_printf("\n\r");
 #endif
 		}
-		if(counter == 300){
+		if(counter == SLEEP_TIME && 0){
 #ifdef VERBOSE
 		  uart_printf("I am going to sleep now");
 #endif
@@ -87,7 +87,9 @@ int main(void)
 		  //turn off BT
 		  gpio_clear(GPIOC, GPIO4);
 		  //sleep..
+		  pwr_set_standby_mode();
 		  pwr_set_stop_mode();
+		  //while(1);
 		}
 		counter++;
 	}
