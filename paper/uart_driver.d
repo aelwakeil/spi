@@ -14,6 +14,13 @@ uart_driver.o: uart_driver.c \
  ../libopencm3/include/libopencm3/cm3/nvic.h \
  ../libopencm3/include/libopencm3/dispatch/nvic.h \
  ../libopencm3/include/libopencm3/stm32/f1/nvic.h \
+ ../libopencm3/include/libopencm3/stm32/pwr.h \
+ ../libopencm3/include/libopencm3/stm32/f1/pwr.h \
+ ../libopencm3/include/libopencm3/stm32/common/pwr_common_all.h \
+ ../libopencm3/include/libopencm3/stm32/f1/bkp.h \
+ ../libopencm3/include/libopencm3/stm32/crc.h \
+ ../libopencm3/include/libopencm3/stm32/f1/crc.h \
+ ../libopencm3/include/libopencm3/stm32/common/crc_common_all.h paper.h \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/stdio.h \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/_ansi.h \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/newlib.h \
@@ -33,4 +40,4 @@ uart_driver.o: uart_driver.c \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/sys/stdio.h \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/errno.h \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/sys/errno.h \
- paper.h uart_driver.h spi_driver.h
+ uart_driver.h spi_driver.h

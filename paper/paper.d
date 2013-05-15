@@ -10,10 +10,19 @@ paper.o: paper.c ../libopencm3/include/libopencm3/stm32/gpio.h \
  ../libopencm3/include/libopencm3/stm32/pwr.h \
  ../libopencm3/include/libopencm3/stm32/f1/pwr.h \
  ../libopencm3/include/libopencm3/stm32/common/pwr_common_all.h \
+ ../libopencm3/include/libopencm3/stm32/f1/rcc.h \
  ../libopencm3/include/libopencm3/stm32/usart.h \
  ../libopencm3/include/libopencm3/stm32/f1/usart.h \
  ../libopencm3/include/libopencm3/stm32/common/usart_common_all.h \
- paper_init.h spi_driver.h \
+ ../libopencm3/include/libopencm3/stm32/timer.h \
+ ../libopencm3/include/libopencm3/stm32/f1/timer.h \
+ ../libopencm3/include/libopencm3/stm32/common/timer_common_all.h \
+ ../libopencm3/include/libopencm3/cm3/nvic.h \
+ ../libopencm3/include/libopencm3/dispatch/nvic.h \
+ ../libopencm3/include/libopencm3/stm32/f1/nvic.h \
+ ../libopencm3/include/libopencm3/cm3/scb.h \
+ ../libopencm3/include/libopencm3/stm32/f1/bkp.h paper_init.h \
+ eeprom_driver.h spi_driver.h \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/stdio.h \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/_ansi.h \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/newlib.h \
@@ -31,4 +40,7 @@ paper.o: paper.c ../libopencm3/include/libopencm3/stm32/gpio.h \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/machine/types.h \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/sys/features.h \
  /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/sys/stdio.h \
- paper.h uart_driver.h
+ paper.h \
+ /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/errno.h \
+ /home/toretak/CodeSourcery/Sourcery_G++_Lite/bin/../lib/gcc/arm-none-eabi/4.4.1/../../../../arm-none-eabi/include/sys/errno.h \
+ uart_driver.h adc_driver.h

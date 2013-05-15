@@ -9,7 +9,7 @@
 
 # Sources
 
-SRCS = paper.c paper_init.c spi_driver.c uart_driver.c
+SRCS = paper.c paper_init.c spi_driver.c uart_driver.c eeprom_driver.c adc_driver.c
 
 # Project name
 

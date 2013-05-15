@@ -7,9 +7,9 @@
 
 extern void usart_setup(uartBuff *ubuff);
 
-extern int SendChar (int ch);
-extern void uart_printf (char *ptr);
-
+extern int SendChar (u32 usart, int ch);
+extern void uart_printf (u32 usart, char *ptr);
+extern void uart_print_int(u32 usart, int value);
 
 
 #endif
