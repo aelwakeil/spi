@@ -24,6 +24,7 @@ typedef enum {
 
 typedef struct uart_buff
 {
+  uart_mode uartMode;
   u8 buf[EP_BUFF_SIZE];
   int start;
   int pointer;
@@ -31,7 +32,6 @@ typedef struct uart_buff
   int rdy;
   int owcounter;
   int complete;
-  uart_mode uartMode;
 } uartBuff;
 
 typedef struct settings

@@ -30,7 +30,7 @@ void spi_setup(void) {
    * Data frame format: 8-bit
    * Frame format: MSB First
    */
-  spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_16, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
+  spi_init_master(SPI2, SPI_CR1_BAUDRATE_FPCLK_DIV_2, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
                   SPI_CR1_CPHA_CLK_TRANSITION_1, SPI_CR1_DFF_8BIT, SPI_CR1_LSBFIRST);
 
   spi_set_master_mode(SPI2);
@@ -150,7 +150,7 @@ void EpStopSend(void){
 void epSendData(uartBuff *buff){
   epTurnOn();
   
-  int i,j,k,line;
+  int i,j,k,check;
   // Chip Select get low
   delay_ms (50);
   // Delay TCS_SI > 1 ms ; TRESET_CS + TCS_SI ≧ 20ms
@@ -162,7 +162,7 @@ void epSendData(uartBuff *buff){
   delay_ms (5);			// TDELAY1 min 5 ms
   // Transmit Display Pattern
   k = 0;
-  line = 0;
+  check = 0;
   for (i=0 ; i < 1280 ; i++)
   //10.2” EPD resolution= 1024 x 1280
   {
@@ -173,7 +173,17 @@ void epSendData(uartBuff *buff){
 	  spi_send(SPI2, ~(buff->buf[k])); 
 	  k++;
 	  if(k >= EP_BUFF_SIZE){
-	    k = 0;
+	    while(k >= EP_BUFF_SIZE){
+	      if(buff->owcounter > 0){
+		k = 0;
+	      }
+	      if(check == -1){
+		epTurnOff();
+		return;
+	      }
+	      check++;
+	    }
+	    //k = 0;
 	    //wait for owerflow
 	    /*while(buff->owcounter > 0 && buff->pointer < 100 && buff->p < EP_BYTES){
 	      //delay_ms(1);

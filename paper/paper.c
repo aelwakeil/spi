@@ -63,14 +63,14 @@ static void init_ep_buff(void){
 
 static void init_timer(void){
     timer_reset(TIM2);
-    timer_set_prescaler(TIM2, 500);        // Rozlisenie 1usec
+    timer_set_prescaler(TIM2, 23999);        // 1ms
     timer_set_mode(TIM2, TIM_CR1_CKD_CK_INT, TIM_CR1_CMS_EDGE, TIM_CR1_DIR_UP);
     
     nvic_enable_irq(NVIC_TIM2_IRQ);		// Povolenie prerusenia pre TIM2
     timer_enable_irq(TIM2, TIM_DIER_CC1IE);	// Povolenie udalosti od CAPTURE
     timer_enable_irq(TIM2, TIM_DIER_UIE);	// Povolenie udalosti od PERIOD
     
-    timer_set_period(TIM2, 20000);		// Inicializacia a vyvolanie
+    timer_set_period(TIM2, 500);		// 500 ms
     timer_set_oc_value(TIM2, TIM_OC1, 0);	// prerusenia pre zabranenie riplov
     timer_generate_event(TIM2, TIM_SR_UIF);	// po resete
 }
@@ -148,6 +148,7 @@ int main(void)
 	if(uart_buff.rdy == 1){
 	    debugPrint("Painting started!\n\r");
 	    nvic_disable_irq(NVIC_TIM2_IRQ);
+	    //gpio_toggle(GPIOC, GPIO1);
 	    epSendData(&uart_buff);
 	}
 	if(uart_buff.uartMode != IDDLE){

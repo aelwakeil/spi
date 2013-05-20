@@ -73,8 +73,8 @@ void usart_setup(uartBuff *ubuff)
 			GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO9);
 	/* Setup UART parameters. */
 	//usart_set_baudrate(USART3, 38400);
-	USART_BRR(USART3) = (u16)((24000000 << 4) / (115200 * 16));
-	//USART_BRR(USART3) = (u16)((24000000 << 4) / (921600 * 16));
+	//USART_BRR(USART3) = (u16)((24000000 << 4) / (115200 * 16));
+	USART_BRR(USART3) = (u16)((24000000 << 4) / (921600 * 16));
 	usart_set_databits(USART3, 8);
 	usart_set_stopbits(USART3, USART_STOPBITS_1);
 	usart_set_mode(USART3, USART_MODE_TX_RX);
@@ -114,6 +114,8 @@ static void processConfig(void){
 	  usart_send_blocking(USART3, t_uart_buff->buf[pos]);
 	} else {
 	  usart_send_blocking(USART3, '\r');
+	  delay_ms(50);
+	  usart_send_blocking(USART3, '\n');
 	  delay_ms(50);
 	  //while(lastChar == 0x00);
 	  configMode = ' ';
@@ -161,7 +163,7 @@ void usart3_isr(void)
 		    t_uart_buff->buf[t_uart_buff->pointer] = data;
 		    t_uart_buff->pointer = t_uart_buff->pointer + 1;
 		    t_uart_buff->p = t_uart_buff->p + 1;
-		    if(t_uart_buff->pointer + 10000 >= EP_BUFF_SIZE && t_uart_buff->owcounter == 0){
+		    if(t_uart_buff->pointer + 50000 >= EP_BUFF_SIZE && t_uart_buff->owcounter == 0){
 		      t_uart_buff->rdy = 1;
 		    }
 		    if(t_uart_buff->pointer >= EP_BUFF_SIZE) {
@@ -242,7 +244,6 @@ void usart3_isr(void)
 		      t_uart_buff->uartMode = newMode;
 		      t_uart_buff->pointer = 0;
 		    } else if(t_uart_buff->start > 0){
-		      t_uart_buff->start = 1;
 		      t_uart_buff->start = t_uart_buff->start + 1;
 		    }
 		}
